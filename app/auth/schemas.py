@@ -6,5 +6,11 @@ class Token(BaseModel):
 
 class TokenData(Token):
     user: User
+
+class RequestPasswordReset(BaseModel):
+    email: str
+
+class PasswordReset(BaseModel):
+    password: str
 class RefreshTokenRequest(BaseModel):
     refresh_token: str

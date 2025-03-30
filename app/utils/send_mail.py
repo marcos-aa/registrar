@@ -38,6 +38,24 @@ async def send_verification_email(
     )
    
     fm = FastMail(conf)
+    background_tasks.add_task(fm.send_message, message)  
+
+async def send_password_reset_email(
+    email: str,
+    access_token: str,
+    background_tasks: BackgroundTasks
+):
+    template = env.get_template("password-reset.html")
+    html_content = template.render(access_token=access_token)
+    
+    message = MessageSchema(
+        subject="Your Verification Code",
+        recipients=[email],
+        body=html_content,
+        subtype="html"
+    )
+   
+    fm = FastMail(conf)
     background_tasks.add_task(fm.send_message, message)    
 
 async def create_user_code(db: AsyncSession, user_id: str) -> str:

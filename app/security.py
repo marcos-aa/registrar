@@ -12,18 +12,22 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
-def create_token(user_id: str, type: Literal['access', 'refresh']) -> tuple[str, datetime]:
+def create_token(
+        user_id: str, 
+        type: Literal['access', 'refresh'], 
+        exp: Optional[int] = None
+) -> tuple[str, datetime]:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": user_id
     }
     if(type == 'access'):
-        expires_at = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expires_at = exp or now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         payload["exp"] = expires_at
         token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
         return token, expires_at
     else:
-        expires_at = now + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+        expires_at = exp or now + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
         payload["exp"] = expires_at
         token = jwt.encode(payload, settings.SECRET_REFRESH_KEY, algorithm=settings.ALGORITHM)
         return token, expires_at
