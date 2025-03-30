@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .models import User, UserCode, UserToken
 from . import schemas
 
+from app.auth.business import manage_refresh_token
+
 from app.utils.send_mail import create_user_code, send_verification_email
 from app.security import get_password_hash, create_token
 
@@ -53,14 +55,8 @@ async def verify_email(code: str, db: AsyncSession) -> schemas.UserToken:
     user.is_active = True
 
     access_token, _ = create_token(user.id, 'access')
-    refresh_token, expires_at = create_token(user.id, 'refresh')
-    
-    db_refresh = UserToken(
-        user_id=user.id,
-        token=refresh_token,
-        expires_at=expires_at
-    )
-    db.add(db_refresh)
+    refresh_token = await manage_refresh_token(user.id, db)
+
     await db.delete(user_code)
     await db.commit()
 
