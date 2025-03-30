@@ -14,3 +14,6 @@ class PasswordReset(BaseModel):
     password: str
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
+
+class Tokens(Token):
+    refresh_token: str

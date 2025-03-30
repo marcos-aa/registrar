@@ -1,10 +1,10 @@
 
 from fastapi import HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from jose import jwt
+from jose import jwt, JWTError, ExpiredSignatureError
 
 from sqlalchemy import select
-from .schemas import TokenData
+from .schemas import TokenData, Tokens
 
 from app.user.models import User, UserToken
 from app.utils.send_mail import send_password_reset_email
@@ -13,7 +13,7 @@ from app.config import settings
 
 from datetime import datetime, timedelta, timezone
 
-async def authenticate_user(db: AsyncSession, email: str, password: str) -> TokenData:
+async def authenticate_user(db: AsyncSession, email: str, password: str) -> tuple[TokenData, str]:
     user_query = await db.execute(select(User).where(User.email == email))
     user = user_query.scalar_one_or_none()
     
@@ -24,18 +24,21 @@ async def authenticate_user(db: AsyncSession, email: str, password: str) -> Toke
         raise HTTPException(status_code=403, detail="Account not verified")
     
     access_token, _ = create_token(user.id, "access")
-    await manage_refresh_token(user.id, db)
+    refresh_token = await manage_refresh_token(user.id, db)
 
     await db.commit()
     
-    return {
+    data = {
         "access_token": access_token,
+        "refresh_token": refresh_token,
         "user": {
             "id": user.id,
             "is_active": user.is_active,
             "email": user.email
         }
     }
+
+    return data, refresh_token
 
 async def request_password_reset(
     db: AsyncSession,
@@ -61,7 +64,7 @@ async def reset_password(
     db: AsyncSession,
     token: str,
     new_password: str
-) -> TokenData:
+) -> tuple[TokenData, str]:
     try:
         payload = jwt.decode(
             token,
@@ -84,16 +87,16 @@ async def reset_password(
         refresh_token = manage_refresh_token(user.id, db)
         
         await db.commit()
-        
-        return {
+        data = {
             "token_type": 'bearer',
             "access_token": access_token,
             "user": user
         }
+        return data, refresh_token
     
-    except jwt.ExpiredSignatureError:
+    except ExpiredSignatureError:
         raise HTTPException(status_code=400, detail="Expired reset link")
-    except jwt.JWTError as e:
+    except JWTError as e:
         raise HTTPException(status_code=400, detail=f"Invalid reset link: {str(e)}")
 
 async def manage_refresh_token(user_id: str, db = AsyncSession) -> str:
@@ -117,3 +120,35 @@ async def manage_refresh_token(user_id: str, db = AsyncSession) -> str:
         db.add(db_refresh)
     
     return refresh_token
+
+async def update_refresh_token(refresh_token: str, db = AsyncSession) -> Tokens | None:
+    try:
+        payload = jwt.decode(
+            refresh_token,
+            settings.SECRET_REFRESH_KEY,
+            algorithms=[settings.ALGORITHM]
+        )
+        
+        result = await db.execute(
+            select(UserToken)
+            .where(
+                UserToken.token == refresh_token,
+                UserToken.expires_at > datetime.now(timezone.utc)
+            )
+        )
+        db_token = result.scalar_one_or_none()
+        if not db_token:
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+        
+        user_id = payload["sub"]
+        access_token, _ = create_token(user_id, 'access')
+        ref_token, expires_at = create_token(user_id, 'refresh')
+        
+        db_token.token = ref_token
+        db_token.expires_at = expires_at
+        await db.commit()
+        
+        return access_token, ref_token
+    
+    except JWTError:
+        return None

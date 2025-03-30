@@ -1,10 +1,16 @@
 from fastapi import FastAPI
+from fastapi.middleware import Middleware
 from fastapi.middleware.cors import CORSMiddleware
 from app.user.router import user_router
 from app.auth.router import auth_router
+from app.middleware.auth import JWTRefreshMiddleware
 
-app = FastAPI(title="JWT Auth API", version="0.1.0")
+app = FastAPI(
+    title="JWT Auth API",
+    version="0.1.0"
+)
 
+app.add_middleware(JWTRefreshMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],

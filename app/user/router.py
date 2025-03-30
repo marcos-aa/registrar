@@ -3,8 +3,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .schemas import UserCreate, User, UserToken
 from .business import create_user, verify_email
 from app.db import get_db
+from app.dependencies.get_current_user import get_current_user
 
 user_router = APIRouter(prefix="/user", tags=["user"])
+
+@user_router.get('/')
+async def get_users(user_id: str = Depends(get_current_user)):
+    return {"message": f"Hello authenticated user {user_id}"}
 
 @user_router.post("/", response_model=User)
 async def register_user(
