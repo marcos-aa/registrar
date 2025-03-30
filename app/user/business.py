@@ -1,13 +1,16 @@
+from datetime import datetime, timezone
 from fastapi import BackgroundTasks, HTTPException
+from sqlalchemy import select, delete
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
-from .models import User
-from .schemas import UserCreate
+from .models import User, UserCode, UserToken
+from . import schemas
 
 from app.utils.send_mail import create_user_code, send_verification_email
-from app.security import get_password_hash
+from app.security import get_password_hash, create_token
 
 async def create_user(
-        user_data: UserCreate,
+        user_data: schemas.UserCreate,
         db: AsyncSession, 
         background_tasks: BackgroundTasks, 
     ) -> User:
@@ -26,3 +29,45 @@ async def create_user(
         return user
     except Exception as e:
         raise HTTPException(status_code=403, detail="Email already registered")
+    
+async def verify_email(code: str, db: AsyncSession) -> schemas.UserToken:
+    code_query = await db.execute(
+        select(UserCode)
+        .join(User)
+        .options(selectinload(UserCode.user))
+        .where(UserCode.code == code)
+    )
+    user_code = code_query.scalar_one_or_none()
+    
+    if not user_code:
+        raise HTTPException(status_code=404, detail="Invalid code")
+    
+    now = datetime.now(timezone.utc)
+
+    expires_at = datetime.fromisoformat(str(user_code.expires_at)).replace(tzinfo=timezone.utc)
+
+    if expires_at < now:
+        raise HTTPException(status_code=403, detail="Expired code")
+    
+    user = user_code.user
+    user.is_active = True
+
+    access_token, _ = create_token(user.id, 'access')
+    refresh_token, expires_at = create_token(user.id, 'refresh')
+    
+    db_refresh = UserToken(
+        user_id=user.id,
+        token=refresh_token,
+        expires_at=expires_at
+    )
+    db.add(db_refresh)
+    await db.delete(user_code)
+    await db.commit()
+
+    return {
+        "id": user.id,
+        "email": user.email,
+        "is_active": user.is_active,
+        "access_token": access_token,
+        "refresh_token": refresh_token
+    }

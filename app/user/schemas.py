@@ -8,3 +8,7 @@ class User(BaseModel):
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
+
+class UserToken(User):
+    access_token: str
+    refresh_token: str

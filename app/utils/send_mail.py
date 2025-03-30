@@ -2,7 +2,7 @@ import random
 from fastapi import BackgroundTasks
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from jinja2 import Environment, FileSystemLoader
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from app.user.models import UserCode
@@ -48,7 +48,7 @@ async def create_user_code(db: AsyncSession, user_id: str) -> str:
     existing_code = code_query.first()
     
     code = f"{random.randint(0, 999999):06d}"
-    expires_at = datetime.now() + timedelta(minutes=15)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
     
     if existing_code:
         await db.execute(
@@ -57,7 +57,7 @@ async def create_user_code(db: AsyncSession, user_id: str) -> str:
             .values(
                 code=code,
                 expires_at=expires_at,
-                created_at=datetime.now()
+                created_at=datetime.now(timezone.utc)
             )
         )
     else:

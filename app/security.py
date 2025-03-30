@@ -1,5 +1,5 @@
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import datetime, timedelta, timezone
+from typing import Optional, Literal
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from app.config import settings
@@ -12,12 +12,18 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(datetime.timezone.utc) + expires_delta
+def create_token(user_id: str, type: Literal['access', 'refresh']) -> tuple[str, datetime]:
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": user_id
+    }
+    if(type == 'access'):
+        expires_at = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        payload["exp"] = expires_at
+        token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+        return token, expires_at
     else:
-        expire = datetime.now(datetime.timezone.utc) + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    return encoded_jwt
+        expires_at = now + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+        payload["exp"] = expires_at
+        token = jwt.encode(payload, settings.SECRET_REFRESH_KEY, algorithm=settings.ALGORITHM)
+        return token, expires_at
