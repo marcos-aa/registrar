@@ -5,11 +5,17 @@ description = "Proof of concept user authentication and authorization"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "aiosqlite>=0.21.0",
+    "alembic>=1.15.2",
     "fastapi>=0.115.12",
+    "fastapi-mail>=1.4.2",
     "passlib>=1.7.4",
+    "pydantic-settings>=2.8.1",
+    "pydantic[email]>=2.11.1",
     "python-dotenv>=1.1.0",
     "python-jose[cryptography]>=3.4.0",
     "python-multipart>=0.0.20",
+    "sqlalchemy>=2.0.40",
     "uvicorn>=0.34.0",
 ]
 
